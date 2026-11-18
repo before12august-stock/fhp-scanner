@@ -1,0 +1,40 @@
+name: FHP Daily Scan
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 10 * * 1-5'  # 17:00 Bangkok, Mon-Fri
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: fhp-scan
+  cancel-in-progress: false
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Gate 1 - build universe.csv
+        run: python gate1.py
+      - name: Commit Gate 1 outputs
+        run: |
+          git config user.name "fhp-bot"
+          git config user.email "fhp-bot@users.noreply.github.com"
+          git add docs/universe.csv docs/gate1.csv docs/gate1.html
+          git diff --cached --quiet || git commit -m "Gate 1: update universe.csv + gate1 report"
+          git push || echo "nothing to push"
+      - name: Main scan - FHP 15.9.5 v4.5 (run_stock.py)
+        run: python run_stock.py
+      - name: Commit scan results
+        run: |
+          git config user.name "fhp-bot"
+          git config user.email "fhp-bot@users.noreply.github.com"
+          git add docs/
+          git diff --cached --quiet || git commit -m "FHP scan $(date -u +%Y-%m-%d_%H:%M)"
+          git push || echo "nothing to push"
